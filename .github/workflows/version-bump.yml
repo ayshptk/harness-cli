@@ -86,7 +86,7 @@ jobs:
           sed -i "s/^version = \"${{ steps.current.outputs.version }}\"/version = \"${{ steps.next.outputs.version }}\"/" Cargo.toml
 
       - name: Update Cargo.lock
-        run: cargo update --workspace
+        run: cargo update
 
       - name: Commit and tag
         run: |
