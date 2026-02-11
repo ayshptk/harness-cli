@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://harness.lol/install.sh | sh
 set -e
 
-REPO="ayshptk/harness"
+REPO="ayshptk/harness-cli"
 INSTALL_DIR="$HOME/.harness/bin"
 BINARY="harness"
 

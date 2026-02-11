@@ -4,7 +4,7 @@ use crate::models::ModelRegistry;
 
 /// URL to fetch the canonical models.toml from GitHub.
 const REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/ayshptk/harness/main/models.toml";
+    "https://raw.githubusercontent.com/ayshptk/harness-cli/main/models.toml";
 
 /// Cache TTL in seconds (24 hours).
 const TTL_SECS: u64 = 86400;
