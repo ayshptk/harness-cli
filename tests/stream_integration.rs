@@ -5,17 +5,22 @@ use harness::config::{AgentKind, TaskConfig};
 use harness::event::*;
 
 /// Create a small shell script that mimics a Claude Code stream-json output.
+/// Write a mock script to `path` via a temp file + atomic rename to avoid
+/// ETXTBSY on Linux CI (the target path is never opened for writing).
 fn write_script(path: &std::path::Path, script: &str) {
-    use std::io::Write;
-    let mut f = std::fs::File::create(path).unwrap();
-    f.write_all(script.as_bytes()).unwrap();
-    f.sync_all().unwrap();
-    drop(f);
+    let tmp = path.with_extension("tmp");
+    {
+        use std::io::Write;
+        let mut f = std::fs::File::create(&tmp).unwrap();
+        f.write_all(script.as_bytes()).unwrap();
+        f.sync_all().unwrap();
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
+    std::fs::rename(&tmp, path).unwrap();
 }
 
 fn create_mock_claude_binary(dir: &std::path::Path) -> PathBuf {

@@ -9,20 +9,25 @@ use harness::runner::AgentRunner;
 // ─── Helpers ────────────────────────────────────────────────────
 
 /// Create a mock binary that outputs the given lines on stdout.
+///
+/// Writes to a temp file, sets permissions, then atomically renames into place
+/// to avoid ETXTBSY on Linux CI (the target path is never opened for writing,
+/// so exec() cannot race with a lingering write fd).
 fn create_mock_binary(dir: &std::path::Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
-    // Use explicit open/write/sync/close to avoid ETXTBSY on Linux CI.
+    let tmp = dir.join(format!(".{}.tmp", name));
     {
         use std::io::Write;
-        let mut f = std::fs::File::create(&path).unwrap();
+        let mut f = std::fs::File::create(&tmp).unwrap();
         f.write_all(script.as_bytes()).unwrap();
         f.sync_all().unwrap();
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
+    std::fs::rename(&tmp, &path).unwrap();
     path
 }
 
