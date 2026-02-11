@@ -1,0 +1,98 @@
+name: Version Bump
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bump:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+
+    # Don't run on commits made by this workflow (avoid infinite loop).
+    if: "!contains(github.event.head_commit.message, '[skip bump]') && !contains(github.event.head_commit.message, 'chore: bump version')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need full history + a token that can push past branch protection.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine bump type from commit messages
+        id: bump
+        run: |
+          # Check all commits in this push for conventional commit prefixes.
+          # major: commit message contains "BREAKING CHANGE" or "!:"
+          # minor: commit message starts with "feat"
+          # patch: everything else
+          COMMITS=$(git log --format='%s' ${{ github.event.before }}..${{ github.sha }} 2>/dev/null || git log --format='%s' -1)
+
+          if echo "$COMMITS" | grep -qiE 'BREAKING CHANGE|^[a-z]+!:'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$COMMITS" | grep -qiE '^feat'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read current version
+        id: current
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $VERSION"
+
+      - name: Compute next version
+        id: next
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.current.outputs.version }}"
+          BUMP="${{ steps.bump.outputs.type }}"
+
+          case "$BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEXT="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Bump: ${{ steps.current.outputs.version }} -> $NEXT ($BUMP)"
+
+      - name: Update Cargo.toml
+        run: |
+          sed -i "s/^version = \"${{ steps.current.outputs.version }}\"/version = \"${{ steps.next.outputs.version }}\"/" Cargo.toml
+
+      - name: Update Cargo.lock
+        run: |
+          # If Cargo.lock is tracked, update it too.
+          if [ -f Cargo.lock ]; then
+            sed -i "0,/version = \"${{ steps.current.outputs.version }}\"/s//version = \"${{ steps.next.outputs.version }}\"/" Cargo.lock
+          fi
+
+      - name: Commit and tag
+        run: |
+          git add Cargo.toml Cargo.lock
+          git commit -m "chore: bump version to v${{ steps.next.outputs.version }} [skip bump]"
+          git tag "v${{ steps.next.outputs.version }}"
+          git push origin main --tags

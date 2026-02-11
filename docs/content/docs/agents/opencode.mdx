@@ -1,0 +1,123 @@
+---
+title: OpenCode
+description: Using OpenCode with harness — flags, output format, and event mapping
+---
+
+OpenCode is an open-source terminal-based AI coding assistant. It supports multiple LLM providers (Anthropic, OpenAI, Google, etc.).
+
+## Installation
+
+```bash
+go install github.com/opencode-ai/opencode@latest
+```
+
+## Headless mode
+
+```bash
+opencode run --format json "explain this codebase"
+```
+
+## How harness maps to OpenCode
+
+| harness | OpenCode |
+|---------|----------|
+| `PermissionMode::FullAccess` | Default — `run` auto-approves |
+| `PermissionMode::ReadOnly` | `--agent plan` |
+| `config.prompt` | Positional argument (last) |
+| `config.model` | `--model <model>` |
+| `config.resume_session` | `--continue --session <id>` |
+| Output format | `run --format json` |
+
+## Key flags
+
+| Flag | Description |
+|------|-------------|
+| `run` | Required subcommand for headless mode |
+| `--format json` | Output JSON events |
+| `--model <model>` | Model to use (e.g. `anthropic/claude-sonnet-4-5`) |
+| `--agent plan` | Read-only / plan mode |
+| `--continue` | Continue an existing session |
+| `--session <id>` | Session ID to continue |
+
+## JSON output format
+
+With `--format json`, OpenCode emits NDJSON. Event types:
+
+### Step start
+```json
+{
+  "type": "step_start",
+  "timestamp": 1770612126829,
+  "sessionID": "ses_abc123",
+  "part": {
+    "type": "step-start",
+    "snapshot": "abc"
+  }
+}
+```
+
+### Text (assistant message)
+```json
+{
+  "type": "text",
+  "sessionID": "ses_abc123",
+  "part": {
+    "type": "text",
+    "text": "I analyzed the code and found the issue."
+  }
+}
+```
+
+### Tool use
+```json
+{
+  "type": "tool_use",
+  "sessionID": "ses_abc123",
+  "part": {
+    "type": "tool",
+    "callID": "toolu_01abc",
+    "tool": "bash",
+    "state": {
+      "status": "completed",
+      "input": {"command": "ls -la"},
+      "output": "total 24\n..."
+    }
+  }
+}
+```
+
+### Step finish
+```json
+{
+  "type": "step_finish",
+  "sessionID": "ses_abc123",
+  "part": {
+    "type": "step-finish",
+    "reason": "stop",
+    "cost": 0.05,
+    "tokens": {
+      "input": 200,
+      "output": 80
+    }
+  }
+}
+```
+
+The `reason` field: `"stop"` means the agent is done, `"tool-calls"` means more events follow.
+
+## Event mapping
+
+| OpenCode event | harness event |
+|----------------|---------------|
+| `step_start` | `SessionStart` |
+| `text` | `Message` (role: Assistant) |
+| `tool_use` | `ToolStart` + `ToolEnd` |
+| `step_finish` (reason: stop) | `UsageDelta` + `Result` |
+| `step_finish` (reason: tool-calls) | `UsageDelta` |
+
+## Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | API key for Anthropic models |
+| `OPENAI_API_KEY` | API key for OpenAI models |

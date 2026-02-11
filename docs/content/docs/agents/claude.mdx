@@ -1,0 +1,119 @@
+---
+title: Claude Code
+description: Using Claude Code with harness — flags, output format, and event mapping
+---
+
+Claude Code is Anthropic's official CLI for Claude. It supports both interactive and headless operation.
+
+## Installation
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+The binary is named `claude`.
+
+## Headless mode
+
+Claude Code's headless mode is invoked with the `-p` (print) flag:
+
+```bash
+claude -p "explain this codebase" --output-format stream-json --verbose
+```
+
+## How harness maps to Claude Code
+
+| harness | Claude Code |
+|---------|-------------|
+| `PermissionMode::FullAccess` | `--dangerously-skip-permissions` |
+| `PermissionMode::ReadOnly` | `--permission-mode plan` |
+| `config.prompt` | `-p <prompt>` |
+| `config.model` | `--model <model>` |
+| `config.max_turns` | `--max-turns <n>` |
+| `config.max_budget_usd` | `--max-budget-usd <n>` |
+| `config.system_prompt` | `--system-prompt <text>` |
+| `config.append_system_prompt` | `--append-system-prompt <text>` |
+| `config.resume_session` | `--resume <session-id>` |
+| Output format | `--output-format stream-json --verbose` |
+
+## Key flags
+
+| Flag | Description |
+|------|-------------|
+| `-p <prompt>` | Required for headless. Run non-interactively with this prompt. |
+| `--output-format <fmt>` | Output format: `text`, `json`, `stream-json` |
+| `--verbose` | Include detailed events in stream output |
+| `--model <model>` | Model to use (e.g. `claude-opus-4-6`) |
+| `--max-turns <n>` | Maximum agentic turns before stopping |
+| `--max-budget-usd <n>` | Maximum spend in USD |
+| `--system-prompt <text>` | Replace the default system prompt |
+| `--append-system-prompt <text>` | Append to the default system prompt |
+| `--resume <session-id>` | Resume a previous session |
+
+## Permission modes
+
+| Flag | Effect |
+|------|--------|
+| (none) | Default — may prompt for tool approvals |
+| `--permission-mode acceptEdits` | Auto-approve file edits |
+| `--permission-mode plan` | Read-only / plan mode |
+| `--dangerously-skip-permissions` | Auto-approve everything |
+
+## Stream-JSON output format
+
+With `--output-format stream-json`, Claude Code emits NDJSON. Event types:
+
+### System init
+```json
+{
+  "type": "system",
+  "subtype": "init",
+  "session_id": "abc-123",
+  "model": "claude-opus-4-6",
+  "cwd": "/path/to/project"
+}
+```
+
+### Assistant message
+```json
+{
+  "type": "assistant",
+  "message": {
+    "role": "assistant",
+    "content": [
+      { "type": "text", "text": "I found the bug in line 42." }
+    ]
+  }
+}
+```
+
+### Stream event (partial delta)
+```json
+{
+  "type": "stream_event",
+  "event": {
+    "delta": {
+      "type": "text_delta",
+      "text": "Hi"
+    }
+  }
+}
+```
+
+### Result
+```json
+{
+  "type": "result",
+  "subtype": "success",
+  "result": "Task completed successfully.",
+  "session_id": "abc-123",
+  "duration_ms": 12345,
+  "total_cost_usd": 0.05
+}
+```
+
+## Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | API key for Claude models |

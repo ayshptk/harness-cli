@@ -1,0 +1,80 @@
+---
+title: Model Registry
+description: How harness resolves human-friendly model names to exact model IDs
+---
+
+The model registry maps human-friendly names (like `sonnet`) to the exact model ID strings each agent CLI expects (like `claude-sonnet-4-5-20250929`).
+
+## Built-in aliases
+
+| Alias | Description | Claude | Codex | OpenCode | Cursor |
+|-------|-------------|--------|-------|----------|--------|
+| `opus` | Claude Opus 4.6 | `claude-opus-4-6` | — | `anthropic/claude-opus-4-6` | `claude-opus-4-6` |
+
+## Resolution flow
+
+When you run `harness run --agent claude --model sonnet`:
+
+1. Check `harness.toml` `[models.sonnet]` — if found with a `claude` key, use it
+2. Check `~/.harness/models.toml` — cached registry from GitHub
+3. Check builtin `models.toml` — compiled into the binary
+4. If found but no key for the agent — warn, pass name through unchanged
+5. If not found — pass the name through unchanged (the agent gets the raw string)
+
+## Registry format
+
+The registry uses TOML. Each model is a section:
+
+```toml
+[models.opus]
+description = "Claude Opus 4.6"
+provider = "anthropic"
+claude = "claude-opus-4-6"
+opencode = "anthropic/claude-opus-4-6"
+cursor = "claude-opus-4-6"
+```
+
+Each agent key (`claude`, `codex`, `opencode`, `cursor`) maps to the model ID that agent expects. Not every model supports every agent.
+
+## Registry sources
+
+Three layers, merged in priority order:
+
+1. **Project config** — `harness.toml` `[models.*]` sections (highest priority)
+2. **Cached registry** — `~/.harness/models.toml` (fetched from GitHub, 24h TTL)
+3. **Builtin registry** — compiled into the binary (fallback)
+
+## Managing the registry
+
+```bash
+# List all known models
+harness models list
+harness models list --agent claude --json
+
+# Resolve an alias
+harness models resolve sonnet --agent claude
+
+# Update the cached registry
+harness models update
+
+# Show the registry file path
+harness models path
+```
+
+## Adding custom aliases
+
+Add model aliases to your `harness.toml`:
+
+```toml
+[models.fast]
+description = "My fast model for quick tasks"
+provider = "anthropic"
+claude = "claude-haiku-4-5-20251001"
+
+[models.smart]
+description = "My smart model for complex tasks"
+provider = "anthropic"
+claude = "claude-opus-4-6"
+```
+
+Then use them: `harness run --agent claude --model fast --prompt "quick question"`

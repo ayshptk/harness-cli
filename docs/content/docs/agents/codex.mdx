@@ -1,0 +1,134 @@
+---
+title: OpenAI Codex
+description: Using OpenAI Codex with harness — flags, output format, and event mapping
+---
+
+Codex is OpenAI's coding agent CLI. It uses the `codex` binary and has a headless `exec` subcommand.
+
+## Installation
+
+```bash
+npm install -g @openai/codex
+```
+
+## Headless mode
+
+```bash
+codex exec --json --sandbox danger-full-access --dangerously-bypass-approvals-and-sandbox "fix the bug"
+```
+
+## How harness maps to Codex
+
+| harness | Codex |
+|---------|-------|
+| `PermissionMode::FullAccess` | `--sandbox danger-full-access --dangerously-bypass-approvals-and-sandbox` |
+| `PermissionMode::ReadOnly` | `--sandbox read-only` |
+| `config.prompt` | Positional argument (last) |
+| `config.model` | `--model <model>` |
+| `config.resume_session` | `exec resume <session-id>` |
+| Output format | `exec --json` |
+
+## Key flags
+
+| Flag | Description |
+|------|-------------|
+| `exec` | Required subcommand for headless mode |
+| `--json` | Output JSONL events |
+| `--model <model>` | Model to use (e.g. `gpt-5-codex`, `o3-mini`) |
+| `--sandbox <mode>` | `read-only` or `danger-full-access` |
+| `--dangerously-bypass-approvals-and-sandbox` | Auto-approve everything |
+| `exec resume <session-id>` | Resume a previous session |
+
+## JSONL output format
+
+With `--json`, Codex emits JSONL. Event types:
+
+### Thread started
+```json
+{"type": "thread.started", "thread_id": "th-123", "model": "gpt-5-codex"}
+```
+
+### Item started (command execution)
+```json
+{
+  "type": "item.started",
+  "item": {
+    "id": "item_1",
+    "type": "command_execution",
+    "command": "/bin/bash -lc 'ls'",
+    "aggregated_output": "",
+    "exit_code": null,
+    "status": "in_progress"
+  }
+}
+```
+
+### Item completed (agent message)
+```json
+{
+  "type": "item.completed",
+  "item": {
+    "id": "item_2",
+    "type": "agent_message",
+    "text": "I found the issue and fixed it."
+  }
+}
+```
+
+### Item completed (command execution)
+```json
+{
+  "type": "item.completed",
+  "item": {
+    "id": "item_1",
+    "type": "command_execution",
+    "command": "ls",
+    "aggregated_output": "file.txt\nsrc/\n",
+    "exit_code": 0,
+    "status": "completed"
+  }
+}
+```
+
+### Item completed (file change)
+```json
+{
+  "type": "item.completed",
+  "item": {
+    "type": "file_change",
+    "id": "fc-1",
+    "path": "src/main.rs"
+  }
+}
+```
+
+### Turn completed
+```json
+{
+  "type": "turn.completed",
+  "usage": {
+    "input_tokens": 8587,
+    "cached_input_tokens": 7808,
+    "output_tokens": 24
+  }
+}
+```
+
+## Event mapping
+
+| Codex event | harness event |
+|-------------|---------------|
+| `thread.started` | `SessionStart` |
+| `item.started` (command_execution) | `ToolStart` |
+| `item.completed` (agent_message) | `Message` |
+| `item.completed` (command_execution) | `ToolEnd` |
+| `item.completed` (file_change) | `ToolStart` + `ToolEnd` |
+| `turn.completed` | `UsageDelta` + `Result` |
+| `turn.failed` | `Error` |
+
+## Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CODEX_API_KEY` | API key for Codex |
+| `OPENAI_API_KEY` | Fallback API key |

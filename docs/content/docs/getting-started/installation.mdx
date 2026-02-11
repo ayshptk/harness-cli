@@ -1,0 +1,55 @@
+---
+title: Installation
+description: Install harness via curl, cargo, or build from source
+---
+
+## Recommended: curl installer
+
+The fastest way to install harness:
+
+```bash
+curl -fsSL https://harness.lol/install.sh | sh
+```
+
+This downloads the latest prebuilt binary for your platform and installs it to `~/.harness/bin/harness`. You may need to add `~/.harness/bin` to your PATH.
+
+## Via crates.io
+
+If you have Rust installed:
+
+```bash
+cargo install harnesscli
+```
+
+The crate is published as `harnesscli` but the binary is named `harness`.
+
+## Build from source
+
+```bash
+git clone https://github.com/ayshptk/harness.git
+cd harness
+cargo build --release
+```
+
+The binary will be at `target/release/harness`.
+
+## Verify installation
+
+```bash
+harness --version
+```
+
+## Prerequisites
+
+Harness itself has no runtime dependencies, but you need at least one agent CLI installed:
+
+- **Claude Code**: `npm install -g @anthropic-ai/claude-code`
+- **Codex**: `npm install -g @openai/codex`
+- **OpenCode**: `go install github.com/opencode-ai/opencode@latest`
+- **Cursor**: installed via the Cursor IDE
+
+Check which agents are available:
+
+```bash
+harness list
+```

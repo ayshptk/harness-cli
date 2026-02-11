@@ -1,0 +1,12 @@
+CLAUDE.md
+AGENTS.md
+target
+.claude
+.agents
+clidocs/
+
+# Docs site build artifacts
+docs/node_modules/
+docs/.next/
+docs/.source/
+docs/out/

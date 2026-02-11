@@ -1,0 +1,90 @@
+---
+title: Quick Start
+description: Run your first coding agent task with harness
+---
+
+## Your first run
+
+Pick an agent and give it a prompt:
+
+```bash
+harness run --agent claude --prompt "explain this codebase"
+```
+
+Output streams as NDJSON (one JSON object per line) to stdout. Each line is a unified event.
+
+## Use model aliases
+
+Instead of remembering exact model IDs, use aliases:
+
+```bash
+harness run --agent claude --model sonnet --prompt "fix the bug in main.rs"
+```
+
+The alias `sonnet` resolves to `claude-sonnet-4-5-20250929` for Claude. See [Model Registry](/docs/configuration/model-registry) for all aliases.
+
+## Dry-run mode
+
+See exactly what command harness would execute without running it:
+
+```bash
+harness run --agent claude --model sonnet --prompt "hello" --dry-run
+```
+
+This prints the resolved binary path, arguments (with model IDs resolved), environment variables, and working directory.
+
+## Pipe prompts from stdin
+
+```bash
+echo "explain this codebase" | harness run --agent claude
+```
+
+Or read from a file:
+
+```bash
+harness run --agent claude --prompt-file task.md
+```
+
+## Check agent availability
+
+```bash
+# List all agents with version info
+harness list
+harness list --json
+
+# Check a specific agent
+harness check claude
+harness check claude --capabilities
+```
+
+## Output formats
+
+Harness supports multiple output formats:
+
+```bash
+# NDJSON (default) — one JSON event per line
+harness run --agent claude --prompt "hello"
+
+# Pretty text
+harness run --agent claude --prompt "hello" --format text
+
+# Single JSON object at the end
+harness run --agent claude --prompt "hello" --format json
+
+# Write to file in addition to stdout
+harness run --agent claude --prompt "hello" --output-file run.ndjson
+```
+
+## Permission modes
+
+By default, harness runs agents in full-access mode (auto-approve everything). For read-only analysis:
+
+```bash
+harness run --agent claude --permissions read-only --prompt "analyze this code"
+```
+
+## Next steps
+
+- [Configure defaults with harness.toml](/docs/configuration/harness-toml)
+- [Learn about each agent's specifics](/docs/agents)
+- [Understand the event stream format](/docs/reference/events)
