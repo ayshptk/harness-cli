@@ -1,0 +1,112 @@
+---
+title: Architecture
+description: How harness works internally — adapters, process management, and the event pipeline
+---
+
+## Data flow
+
+```
+TaskConfig → AgentRunner::build_args() → spawn subprocess → read stdout lines
+                                                              ↓
+                                              parse_*_line() (per-adapter, returns Vec<Event>)
+                                                              ↓
+                                               stamp timestamps → EventStream (unified)
+                                                         ↓              ↓
+                                                    stdout/file     session log
+```
+
+## Key abstractions
+
+### AgentKind
+
+Enum of supported agents: Claude, OpenCode, Codex, Cursor. Each variant knows its binary candidates, display name, and parse aliases.
+
+### TaskConfig
+
+Everything needed to run a task: prompt, agent, working directory, model, permissions, output format, timeouts, system prompt overrides, extra args, and environment variables.
+
+### PermissionMode
+
+Two modes:
+- **FullAccess** (default) — auto-approve everything
+- **ReadOnly** — plan/read-only mode, agent cannot make changes
+
+### Event
+
+The unified event enum with 7 variants, all including `timestamp_ms`. See [Event Stream](/docs/reference/events) for the full format.
+
+### AgentRunner trait
+
+Each adapter implements:
+- `build_args()` — translate TaskConfig to CLI arguments
+- `build_env()` — extra environment variables
+- `binary_path()` — resolve which binary to use
+- `run()` — spawn and return an EventStream
+- `capabilities()` — return AgentCapabilities
+- `version()` — get agent version string
+- `validate_config()` — check config against capabilities
+
+### spawn_and_stream()
+
+Shared subprocess scaffolding: spawns the child in a new process group, reads stdout line-by-line, passes each line to the adapter's parser (which returns `Vec<Result<Event>>`), auto-stamps timestamps, collects stderr (capped at 64KB), kills child on drop.
+
+### ModelRegistry
+
+Model name → per-agent model ID mapping. Three layers merged in priority order: project config > cached registry > builtin registry.
+
+### SessionLogger
+
+Tees events to NDJSON files at `~/.local/share/harness/sessions/` with metadata sidecar files.
+
+## Crate layout
+
+```
+src/
+├── main.rs          # CLI entry point (clap)
+├── lib.rs           # Public API: run_task(), available_agents()
+├── config.rs        # Core types: AgentKind, PermissionMode, TaskConfig
+├── error.rs         # Error enum (thiserror)
+├── event.rs         # Unified event types (7 variants, serde tagged enum)
+├── models.rs        # Model registry types
+├── registry.rs      # Fetch + cache layer for model registry
+├── runner.rs        # AgentRunner trait + binary resolution
+├── process.rs       # spawn_and_stream() + ChildGuard
+├── normalize.rs     # Text normalization utilities
+├── settings.rs      # Config file support (harness.toml + legacy)
+├── logger.rs        # Session NDJSON logging
+└── agents/
+    ├── mod.rs       # create_runner() factory
+    ├── claude.rs    # Claude Code adapter
+    ├── codex.rs     # Codex adapter
+    ├── cursor.rs    # Cursor adapter
+    └── opencode.rs  # OpenCode adapter
+```
+
+## Process safety
+
+Agent subprocesses are managed with safety guarantees:
+
+- **ChildGuard** wraps the child PID with a `Drop` implementation
+- `.process_group(0)` on spawn so the agent and its children form a killable group
+- SIGTERM to the process group on cleanup, SIGKILL after 2s grace period
+- Guard wrapped in `Arc` inside the stream so dropping the stream kills the child
+- stderr buffer capped at 64KB to prevent memory exhaustion
+
+## Binary resolution
+
+When looking for an agent binary:
+1. Check explicit path from CLI flag or config
+2. Check project config for agent-specific binary path
+3. Check legacy settings
+4. Try all `binary_candidates()` via PATH lookup
+5. Error if none found
+
+## Adapter pattern
+
+Each agent adapter has a `parse_*_line()` function that converts one line of native output into `Vec<Result<Event>>` — a single line can produce multiple events (e.g. Codex file changes emit both ToolStart and ToolEnd).
+
+The adapters handle different JSON schemas:
+- **Claude**: NDJSON with `type` field (system, assistant, stream_event, result)
+- **Codex**: JSONL with `type` field (thread.started, item.created, thread.completed)
+- **OpenCode**: Variable JSON shapes with fallback parsing
+- **Cursor**: NDJSON with nested `*ToolCall` keys

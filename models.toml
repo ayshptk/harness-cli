@@ -1,0 +1,17 @@
+# Canonical model registry for harness.
+#
+# Each [models.<name>] section defines a human-friendly alias that maps to
+# the exact model ID string expected by each agent CLI.  Not every agent
+# needs a mapping — only the ones that support that model.
+#
+# This file is compiled into the harness binary via include_str!() as a
+# builtin fallback. A fresh copy is also fetched from GitHub and cached at
+# ~/.harness/models.toml (TTL: 24 hours). Project-level harness.toml files
+# can add or override entries.
+
+[models.opus]
+description = "Claude Opus 4.6"
+provider = "anthropic"
+claude = "claude-opus-4-6"
+opencode = "anthropic/claude-opus-4-6"
+cursor = "claude-opus-4-6"

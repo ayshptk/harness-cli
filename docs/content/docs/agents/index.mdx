@@ -1,0 +1,35 @@
+---
+title: Supported Agents
+description: Overview of the four coding agent backends harness supports
+---
+
+Harness supports four coding agent CLIs. Each has its own adapter that translates the agent's native output into the unified event stream.
+
+## Agent comparison
+
+| Feature | Claude Code | Codex | OpenCode | Cursor |
+|---------|------------|-------|----------|--------|
+| Binary | `claude` | `codex` | `opencode` | `cursor-agent` |
+| Provider | Anthropic | OpenAI | Multi | Multi |
+| Headless flag | `-p` | `exec` | `run` | `-p` |
+| Native format | NDJSON | JSONL | NDJSON | NDJSON |
+| Model flag | `--model` | `--model` | `--model` | `--model` |
+| Resume support | Yes | Yes | Yes | Yes |
+| Full-access mode | `--dangerously-skip-permissions` | `--sandbox danger-full-access` | Default | `--force` |
+| Read-only mode | `--permission-mode plan` | `--sandbox read-only` | `--agent plan` | `--mode plan` |
+
+## Auto-detection
+
+If you omit `--agent`, harness will:
+1. Check your project config (`harness.toml`)
+2. Check legacy config files
+3. Scan for available agents — if exactly one is installed, use it
+4. Error if multiple agents are found (you must specify)
+
+## Binary resolution
+
+For each agent, harness searches for the binary in this order:
+1. Explicit path from `--binary` flag or config
+2. Project config (`harness.toml`) agent-specific binary path
+3. Legacy settings file
+4. PATH lookup using all candidate binary names

@@ -1,0 +1,4 @@
+{
+  "title": "Configuration",
+  "pages": ["harness-toml", "model-registry"]
+}

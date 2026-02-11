@@ -1,0 +1,121 @@
+---
+title: CLI Reference
+description: Complete reference for all harness commands and flags
+---
+
+## harness run
+
+Run a coding agent task.
+
+```
+harness run [OPTIONS] [--prompt <PROMPT> | --prompt-file <FILE>]
+```
+
+### Options
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--agent <AGENT>` | `-a` | Agent to use: `claude`, `codex`, `opencode`, `cursor` |
+| `--prompt <TEXT>` | `-p` | Prompt text (or pipe from stdin) |
+| `--prompt-file <FILE>` | | Read prompt from a file |
+| `--model <MODEL>` | `-m` | Model name or alias |
+| `--permissions <MODE>` | | `full-access` (default) or `read-only` |
+| `--format <FMT>` | `-f` | Output format: `ndjson` (default), `text`, `json`, `markdown` |
+| `--output-file <FILE>` | `-o` | Write events to a file in addition to stdout |
+| `--cwd <DIR>` | | Working directory for the agent |
+| `--timeout <SECS>` | | Timeout in seconds |
+| `--system-prompt <TEXT>` | | Override the agent's system prompt |
+| `--append-system-prompt <TEXT>` | | Append to the agent's system prompt |
+| `--max-turns <N>` | | Maximum agentic turns |
+| `--max-budget-usd <N>` | | Maximum spend in USD |
+| `--resume <SESSION>` | | Resume a previous session |
+| `--binary <PATH>` | | Explicit path to the agent binary |
+| `--extra-args <ARGS>` | | Extra arguments passed to the agent |
+| `--dry-run` | | Show resolved command without executing |
+
+### Prompt sources (in priority order)
+
+1. `--prompt <TEXT>` — inline prompt
+2. `--prompt-file <FILE>` — read from file
+3. stdin — if input is piped (not a terminal)
+
+### Examples
+
+```bash
+# Basic run
+harness run --agent claude --prompt "explain main.rs"
+
+# With model alias and output file
+harness run -a claude -m sonnet -p "fix the bug" -o session.ndjson
+
+# Dry-run to see resolved command
+harness run --agent claude --model opus --prompt "hello" --dry-run
+
+# Read-only mode
+harness run --agent claude --permissions read-only --prompt "analyze this"
+
+# Pipe from stdin
+cat task.md | harness run --agent claude
+```
+
+## harness list
+
+List available agents with their installation status.
+
+```
+harness list [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+## harness check
+
+Check if a specific agent is installed and working.
+
+```
+harness check <AGENT> [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--capabilities` | Show agent capabilities |
+
+## harness config
+
+Manage configuration.
+
+```
+harness config <SUBCOMMAND>
+```
+
+| Subcommand | Description |
+|------------|-------------|
+| `init` | Create `harness.toml` in the current directory |
+| `show` | Display resolved configuration |
+| `path` | Print the config file path |
+
+## harness models
+
+Manage the model registry.
+
+```
+harness models <SUBCOMMAND>
+```
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List all model aliases |
+| `list --agent <AGENT>` | List models for a specific agent |
+| `list --json` | Output as JSON |
+| `resolve <ALIAS> --agent <AGENT>` | Resolve alias to model ID |
+| `update` | Refresh the cached registry from GitHub |
+| `path` | Print the registry file path |
+
+## Global options
+
+| Flag | Description |
+|------|-------------|
+| `--version` | Print version |
+| `--help` | Print help |

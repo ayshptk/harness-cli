@@ -1,0 +1,34 @@
+---
+title: What is harness?
+description: A unified CLI to run any coding agent from a single interface
+---
+
+**harness** is a unified CLI that runs any of four coding agent CLIs — Claude Code, OpenAI Codex, OpenCode, or Cursor — through a single interface.
+
+It spawns the selected agent as a subprocess, translates its native streaming output into a unified NDJSON event stream, and outputs it to stdout. Write one integration, and it works with any supported agent backend.
+
+## Why harness?
+
+Every coding agent has its own CLI, its own flags, its own output format. If you're building tooling on top of coding agents — orchestration systems, CI pipelines, evaluation harnesses, or custom UIs — you'd normally need to write a separate integration for each one.
+
+Harness solves this by providing:
+
+- **One CLI** — `harness run --agent <name> --prompt "..."` works the same regardless of which agent you pick
+- **One event format** — 7 unified event types (SessionStart, TextDelta, Message, ToolStart, ToolEnd, Result, Error) with consistent JSON schemas
+- **Model aliases** — `--model sonnet` resolves to the right model ID for whichever agent you're using
+- **Process safety** — subprocess management with process groups, graceful shutdown, and stderr capture
+
+## Supported agents
+
+| Agent | Binary | Provider |
+|-------|--------|----------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Anthropic |
+| [OpenAI Codex](https://github.com/openai/codex) | `codex` | OpenAI |
+| [OpenCode](https://github.com/opencode-ai/opencode) | `opencode` | Multi-provider |
+| [Cursor](https://cursor.com) | `cursor-agent` | Multi-provider |
+
+## Next steps
+
+- [Install harness](/docs/getting-started/installation)
+- [Quick start guide](/docs/getting-started/quick-start)
+- [Learn about the unified event stream](/docs/reference/events)

@@ -1,0 +1,142 @@
+---
+title: Cursor
+description: Using Cursor's headless agent with harness — flags, output format, and event mapping
+---
+
+Cursor's headless agent provides a Claude Code-compatible interface for non-interactive coding tasks.
+
+## Installation
+
+Cursor's headless agent is typically installed via the Cursor IDE or as a standalone binary.
+
+```bash
+cursor-agent --version
+# or
+agent --version
+```
+
+## Headless mode
+
+```bash
+cursor-agent -p --output-format stream-json "explain this codebase"
+```
+
+Note: the prompt is a positional argument; `-p` enables headless mode.
+
+## How harness maps to Cursor
+
+| harness | Cursor |
+|---------|--------|
+| `PermissionMode::FullAccess` | `--force` |
+| `PermissionMode::ReadOnly` | `--mode plan` |
+| `config.prompt` | Positional argument (last) |
+| `config.model` | `--model <model>` |
+| `config.resume_session` | `--resume <session-id>` |
+| Output format | `-p --output-format stream-json` |
+
+## Key flags
+
+| Flag | Description |
+|------|-------------|
+| `-p` | Required for headless mode |
+| `--output-format <fmt>` | Output format: `stream-json` for NDJSON |
+| `--model <model>` | Model to use |
+| `--force` | Auto-approve all tool permissions |
+| `--mode plan` | Read-only mode |
+| `--resume <session-id>` | Resume a previous session |
+
+## Stream-JSON output format
+
+Cursor emits NDJSON similar to Claude Code. Event types:
+
+### System init
+```json
+{
+  "type": "system",
+  "subtype": "init",
+  "session_id": "s-42",
+  "model": "gpt-5.2",
+  "cwd": "/home/user"
+}
+```
+
+### Assistant message
+```json
+{
+  "type": "assistant",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {"type": "text", "text": "I found the bug."}
+    ]
+  }
+}
+```
+
+### Tool call started
+```json
+{
+  "type": "tool_call",
+  "subtype": "started",
+  "call_id": "c-1",
+  "tool_call": {
+    "readToolCall": {
+      "args": {"path": "src/main.rs"}
+    }
+  }
+}
+```
+
+### Tool call completed
+```json
+{
+  "type": "tool_call",
+  "subtype": "completed",
+  "call_id": "c-1",
+  "tool_call": {
+    "readToolCall": {
+      "result": {
+        "success": {"content": "fn main() {}"}
+      }
+    }
+  }
+}
+```
+
+### Result
+```json
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 2000,
+  "result": "Task completed successfully."
+}
+```
+
+## Tool call naming
+
+Tool calls are nested under keys following the `*ToolCall` pattern: `readToolCall`, `writeToolCall`, `listToolCall`, `bashToolCall`, `searchToolCall`.
+
+## Event mapping
+
+| Cursor event | harness event |
+|--------------|---------------|
+| `system` (init) | `SessionStart` |
+| `assistant` | `Message` (role: Assistant) |
+| `user` | `Message` (role: User) |
+| `tool_call` (started) | `ToolStart` |
+| `tool_call` (completed) | `ToolEnd` |
+| `result` | `Result` |
+
+## Binary candidates
+
+Harness searches for the Cursor binary in this order:
+1. `cursor-agent` (preferred)
+2. `agent` (fallback)
+
+## Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CURSOR_API_KEY` | API key for Cursor's API |

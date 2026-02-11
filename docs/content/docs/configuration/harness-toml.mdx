@@ -1,0 +1,77 @@
+---
+title: harness.toml
+description: Project-level configuration file reference
+---
+
+Place a `harness.toml` file in your project root (or any parent directory — harness walks up the directory tree to find it).
+
+## Basic example
+
+```toml
+default_agent = "claude"
+default_model = "sonnet"
+default_permissions = "full-access"
+default_timeout_secs = 300
+```
+
+## Full reference
+
+### Top-level fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `default_agent` | string | — | Agent to use when `--agent` is omitted |
+| `default_model` | string | — | Model alias to use when `--model` is omitted |
+| `default_permissions` | string | `"full-access"` | Permission mode: `"full-access"` or `"read-only"` |
+| `default_timeout_secs` | integer | — | Timeout in seconds for the agent process |
+
+### Agent-specific settings
+
+```toml
+[agents.claude]
+binary = "/opt/claude/bin/claude"
+model = "opus"
+extra_args = ["--verbose"]
+
+[agents.codex]
+model = "gpt-4o"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `binary` | string | Explicit path to the agent binary |
+| `model` | string | Default model for this agent (overrides `default_model`) |
+| `extra_args` | string[] | Additional CLI arguments passed to the agent |
+
+### Model overrides
+
+You can define project-specific model aliases that override the global registry:
+
+```toml
+[models.my-model]
+description = "My custom model"
+provider = "anthropic"
+claude = "my-custom-model-id"
+```
+
+See [Model Registry](/docs/configuration/model-registry) for the full format.
+
+## Config resolution order
+
+When harness needs a value, it checks in this order:
+1. CLI flags (`--agent`, `--model`, etc.)
+2. `harness.toml` in the current or parent directory
+3. Legacy config at `~/.config/harness/config.toml` (deprecated)
+4. Built-in defaults
+
+## Legacy config
+
+Harness still supports the legacy config format at `~/.config/harness/config.toml` and `.harnessrc.toml`, but these emit deprecation warnings. Migrate to `harness.toml` for the best experience.
+
+## Create a config file
+
+```bash
+harness config init    # Creates harness.toml in the current directory
+harness config show    # Display resolved config
+harness config path    # Show config file path
+```

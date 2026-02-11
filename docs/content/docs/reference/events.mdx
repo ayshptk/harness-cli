@@ -1,0 +1,149 @@
+---
+title: Event Stream
+description: The unified NDJSON event format that all agents are translated into
+---
+
+Harness translates every agent's native output into a unified NDJSON event stream. Each line of output is a JSON object with a `type` field and a `timestamp_ms` field.
+
+## Event types
+
+There are 7 event types:
+
+### SessionStart
+
+Emitted once at the beginning of a run.
+
+```json
+{
+  "type": "SessionStart",
+  "timestamp_ms": 1700000000000,
+  "session_id": "abc-123",
+  "agent": "claude",
+  "model": "claude-sonnet-4-5-20250929",
+  "cwd": "/path/to/project"
+}
+```
+
+### TextDelta
+
+A streaming text chunk from the agent.
+
+```json
+{
+  "type": "TextDelta",
+  "timestamp_ms": 1700000000100,
+  "text": "I'll start by reading"
+}
+```
+
+### Message
+
+A complete message from any role.
+
+```json
+{
+  "type": "Message",
+  "timestamp_ms": 1700000000200,
+  "role": "assistant",
+  "text": "I found the bug in the authentication module."
+}
+```
+
+Role is one of: `assistant`, `user`, `system`.
+
+### ToolStart
+
+A tool invocation is beginning.
+
+```json
+{
+  "type": "ToolStart",
+  "timestamp_ms": 1700000000300,
+  "call_id": "call_1",
+  "tool_name": "read_file",
+  "input": "{\"path\": \"src/main.rs\"}"
+}
+```
+
+### ToolEnd
+
+A tool invocation has completed.
+
+```json
+{
+  "type": "ToolEnd",
+  "timestamp_ms": 1700000000400,
+  "call_id": "call_1",
+  "success": true,
+  "output": "fn main() {\n    println!(\"hello\");\n}"
+}
+```
+
+### Result
+
+The run has finished.
+
+```json
+{
+  "type": "Result",
+  "timestamp_ms": 1700000005000,
+  "success": true,
+  "text": "Task completed successfully.",
+  "duration_ms": 5000,
+  "total_cost_usd": 0.05
+}
+```
+
+### Error
+
+An error occurred.
+
+```json
+{
+  "type": "Error",
+  "timestamp_ms": 1700000005000,
+  "message": "Agent process exited with code 1",
+  "code": "process_error"
+}
+```
+
+## Timestamps
+
+All events include `timestamp_ms` — milliseconds since the Unix epoch. This allows you to compute durations between events, measure tool execution time, etc.
+
+## Consuming the stream
+
+The NDJSON format makes it easy to consume line-by-line:
+
+```bash
+# Pipe to jq for pretty-printing
+harness run --agent claude --prompt "hello" | jq .
+
+# Filter for specific event types
+harness run --agent claude --prompt "hello" | jq 'select(.type == "Message")'
+
+# Extract just the text
+harness run --agent claude --prompt "hello" | jq -r 'select(.type == "TextDelta") | .text'
+```
+
+In code, read line by line and parse each as JSON:
+
+```python
+import json
+import subprocess
+
+proc = subprocess.Popen(
+    ["harness", "run", "--agent", "claude", "--prompt", "hello"],
+    stdout=subprocess.PIPE,
+    text=True,
+)
+
+for line in proc.stdout:
+    event = json.loads(line)
+    if event["type"] == "TextDelta":
+        print(event["text"], end="")
+```
+
+## Session logging
+
+Every run is automatically logged to `~/.local/share/harness/sessions/<id>.ndjson` with a metadata sidecar file. You can replay or analyze past sessions from these files.
