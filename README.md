@@ -12,10 +12,10 @@ Write one integration, and it works with any supported agent backend.
 
 | Agent | Binary | Status |
 |-------|--------|--------|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Full support |
-| [OpenAI Codex](https://github.com/openai/codex) | `codex` | Full support |
-| [OpenCode](https://github.com/opencode-ai/opencode) | `opencode` | Full support |
-| [Cursor](https://cursor.com) | `cursor-agent` | Full support |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Supported |
+| [OpenAI Codex](https://github.com/openai/codex) | `codex` | Supported |
+| [OpenCode](https://github.com/opencode-ai/opencode) | `opencode` | Supported |
+| [Cursor](https://cursor.com) | `agent` | Supported |
 
 ## Install
 
