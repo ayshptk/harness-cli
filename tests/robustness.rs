@@ -9,26 +9,59 @@ use harness::runner::AgentRunner;
 // ─── Helpers ────────────────────────────────────────────────────
 
 /// Create a mock binary that outputs the given lines on stdout.
-///
-/// Writes to a temp file, sets permissions, then atomically renames into place
-/// to avoid ETXTBSY on Linux CI (the target path is never opened for writing,
-/// so exec() cannot race with a lingering write fd).
 fn create_mock_binary(dir: &std::path::Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
-    let tmp = dir.join(format!(".{}.tmp", name));
     {
         use std::io::Write;
-        let mut f = std::fs::File::create(&tmp).unwrap();
+        let mut f = std::fs::File::create(&path).unwrap();
         f.write_all(script.as_bytes()).unwrap();
         f.sync_all().unwrap();
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
-    std::fs::rename(&tmp, &path).unwrap();
     path
+}
+
+/// Call `run_task`, retrying on ETXTBSY (Linux CI race between close and exec).
+async fn run_task_retry(config: &harness::config::TaskConfig) -> harness::EventStream {
+    for attempt in 0..10 {
+        match harness::run_task(config).await {
+            Ok(stream) => return stream,
+            Err(harness::Error::SpawnFailed(ref e)) if e.raw_os_error() == Some(26) => {
+                if attempt < 9 {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    continue;
+                }
+                panic!("ETXTBSY after 10 retries: {e}");
+            }
+            Err(e) => panic!("run_task failed: {e}"),
+        }
+    }
+    unreachable!()
+}
+
+/// Call `run_task_with_cancel`, retrying on ETXTBSY.
+async fn run_task_with_cancel_retry(
+    config: &harness::config::TaskConfig,
+    token: tokio_util::sync::CancellationToken,
+) -> harness::process::StreamHandle {
+    for attempt in 0..10 {
+        match harness::run_task_with_cancel(config, Some(token.clone())).await {
+            Ok(handle) => return handle,
+            Err(harness::Error::SpawnFailed(ref e)) if e.raw_os_error() == Some(26) => {
+                if attempt < 9 {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    continue;
+                }
+                panic!("ETXTBSY after 10 retries: {e}");
+            }
+            Err(e) => panic!("run_task_with_cancel failed: {e}"),
+        }
+    }
+    unreachable!()
 }
 
 // ─── Malformed input tests ──────────────────────────────────────
@@ -46,7 +79,7 @@ async fn malformed_truncated_json() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         events.push(result);
@@ -70,7 +103,7 @@ async fn malformed_empty_json_object() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -96,7 +129,7 @@ async fn malformed_null_bytes_codex() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         events.push(result);
@@ -118,7 +151,7 @@ async fn malformed_cursor_no_type() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -144,7 +177,7 @@ async fn malformed_very_long_line() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut count = 0;
     while let Some(_result) = stream.next().await {
         count += 1;
@@ -169,7 +202,7 @@ async fn malformed_binary_garbage_claude() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut count = 0;
     while let Some(_result) = stream.next().await {
         count += 1;
@@ -193,7 +226,7 @@ async fn cursor_tool_call_no_subtype() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -218,7 +251,7 @@ echo '{"type":"result","subtype":"success","result":"done","session_id":"s1"}'
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -248,7 +281,7 @@ echo '{"type":"result","subtype":"success","result":"done","session_id":"s1"}'
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -273,7 +306,7 @@ echo '{"type":"thread.completed","summary":"ok"}'
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -297,7 +330,7 @@ echo '{"type":"thread.completed","thread_id":"t1","summary":"done"}'
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -325,7 +358,7 @@ echo '{"type":"step_finish","sessionID":"s1","part":{"type":"step-finish","reaso
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(Ok(event)) = stream.next().await {
         events.push(event);
@@ -511,9 +544,7 @@ echo '{"type":"result","subtype":"success","result":"never reached","session_id"
     config.cwd = Some(dir.path().to_path_buf());
 
     let token = tokio_util::sync::CancellationToken::new();
-    let handle = harness::run_task_with_cancel(&config, Some(token.clone()))
-        .await
-        .unwrap();
+    let handle = run_task_with_cancel_retry(&config, token.clone()).await;
     let mut stream = handle.stream;
 
     // Read the first event.
@@ -551,9 +582,7 @@ sleep 30
     config.cwd = Some(dir.path().to_path_buf());
 
     let token = tokio_util::sync::CancellationToken::new();
-    let handle = harness::run_task_with_cancel(&config, Some(token.clone()))
-        .await
-        .unwrap();
+    let handle = run_task_with_cancel_retry(&config, token.clone()).await;
     let mut stream = handle.stream;
 
     // Read the first event (the init event) before cancelling.

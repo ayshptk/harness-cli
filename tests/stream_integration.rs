@@ -5,22 +5,35 @@ use harness::config::{AgentKind, TaskConfig};
 use harness::event::*;
 
 /// Create a small shell script that mimics a Claude Code stream-json output.
-/// Write a mock script to `path` via a temp file + atomic rename to avoid
-/// ETXTBSY on Linux CI (the target path is never opened for writing).
 fn write_script(path: &std::path::Path, script: &str) {
-    let tmp = path.with_extension("tmp");
-    {
-        use std::io::Write;
-        let mut f = std::fs::File::create(&tmp).unwrap();
-        f.write_all(script.as_bytes()).unwrap();
-        f.sync_all().unwrap();
-    }
+    use std::io::Write;
+    let mut f = std::fs::File::create(path).unwrap();
+    f.write_all(script.as_bytes()).unwrap();
+    f.sync_all().unwrap();
+    drop(f);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
-    std::fs::rename(&tmp, path).unwrap();
+}
+
+/// Call `run_task`, retrying on ETXTBSY (Linux CI race between close and exec).
+async fn run_task_retry(config: &harness::config::TaskConfig) -> harness::EventStream {
+    for attempt in 0..10 {
+        match harness::run_task(config).await {
+            Ok(stream) => return stream,
+            Err(harness::Error::SpawnFailed(ref e)) if e.raw_os_error() == Some(26) => {
+                if attempt < 9 {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    continue;
+                }
+                panic!("ETXTBSY after 10 retries: {e}");
+            }
+            Err(e) => panic!("run_task failed: {e}"),
+        }
+    }
+    unreachable!()
 }
 
 fn create_mock_claude_binary(dir: &std::path::Path) -> PathBuf {
@@ -95,7 +108,7 @@ async fn claude_mock_stream() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         match result {
@@ -127,7 +140,7 @@ async fn codex_mock_stream() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         match result {
@@ -156,7 +169,7 @@ async fn cursor_mock_stream() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         match result {
@@ -184,7 +197,7 @@ async fn opencode_mock_stream() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut events = Vec::new();
     while let Some(result) = stream.next().await {
         match result {
@@ -211,7 +224,7 @@ async fn failing_process_returns_error() {
     config.binary_path = Some(binary);
     config.cwd = Some(dir.path().to_path_buf());
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
 
     let mut had_error = false;
     while let Some(result) = stream.next().await {
@@ -258,19 +271,14 @@ async fn extra_args_passed_through() {
 # Print all args as a JSON array for inspection.
 echo '{"type":"result","subtype":"success","result":"args: '"$*"'","session_id":"s1"}'
 "#;
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
 
     let mut config = TaskConfig::new("test", AgentKind::Claude);
     config.binary_path = Some(path);
     config.cwd = Some(dir.path().to_path_buf());
     config.extra_args = vec!["--custom-flag".to_string(), "value".to_string()];
 
-    let mut stream = harness::run_task(&config).await.unwrap();
+    let mut stream = run_task_retry(&config).await;
     let mut result_text = String::new();
     while let Some(Ok(event)) = stream.next().await {
         if let Event::Result(r) = event {
