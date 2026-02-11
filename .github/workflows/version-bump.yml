@@ -23,7 +23,7 @@ jobs:
         with:
           # Need full history + a token that can push past branch protection.
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Configure git
         run: |
