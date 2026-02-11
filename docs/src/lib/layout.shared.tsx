@@ -8,7 +8,7 @@ export function baseOptions(): BaseLayoutProps {
     links: [
       {
         text: 'GitHub',
-        url: 'https://github.com/ayshptk/harness',
+        url: 'https://github.com/ayshptk/harness-cli',
       },
     ],
   };
