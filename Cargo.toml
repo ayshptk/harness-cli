@@ -1,6 +1,6 @@
 [package]
 name = "harnesscli"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "Unified CLI to run Claude Code, OpenCode, Codex, or Cursor from a single interface"
 license = "MIT"
