@@ -5,6 +5,19 @@ use harness::config::{AgentKind, TaskConfig};
 use harness::event::*;
 
 /// Create a small shell script that mimics a Claude Code stream-json output.
+fn write_script(path: &std::path::Path, script: &str) {
+    use std::io::Write;
+    let mut f = std::fs::File::create(path).unwrap();
+    f.write_all(script.as_bytes()).unwrap();
+    f.sync_all().unwrap();
+    drop(f);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
 fn create_mock_claude_binary(dir: &std::path::Path) -> PathBuf {
     let path = dir.join("claude");
     let script = r#"#!/bin/bash
@@ -13,12 +26,7 @@ echo '{"type":"system","subtype":"init","session_id":"mock-session","model":"moc
 echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I analyzed the code."}]}}'
 echo '{"type":"result","subtype":"success","result":"Analysis complete.","session_id":"mock-session","duration_ms":500,"total_cost_usd":0.01}'
 "#;
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
     path
 }
 
@@ -32,12 +40,7 @@ echo '{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","co
 echo '{"type":"item.completed","item":{"id":"cmd-1","type":"command_execution","command":"git diff","aggregated_output":"diff output","exit_code":0,"status":"completed"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":20}}'
 "#;
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
     path
 }
 
@@ -51,12 +54,7 @@ echo '{"type":"tool_call","subtype":"started","call_id":"tc-1","tool_call":{"rea
 echo '{"type":"tool_call","subtype":"completed","call_id":"tc-1","tool_call":{"readToolCall":{"result":{"success":{"content":"fn main(){}"}}}},"session_id":"cur-mock"}'
 echo '{"type":"result","subtype":"success","is_error":false,"duration_ms":800,"result":"Refactoring done.","session_id":"cur-mock"}'
 "#;
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
     path
 }
 
@@ -68,12 +66,7 @@ echo '{"type":"step_start","sessionID":"oc-mock","part":{"type":"step-start","sn
 echo '{"type":"text","sessionID":"oc-mock","part":{"type":"text","text":"Analyzed the architecture."}}'
 echo '{"type":"step_finish","sessionID":"oc-mock","part":{"type":"step-finish","reason":"stop","cost":0.02,"tokens":{"input":200,"output":80,"reasoning":0,"cache":{"read":100,"write":50}}}}'
 "#;
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
     path
 }
 
@@ -82,12 +75,7 @@ fn create_failing_binary(dir: &std::path::Path, name: &str) -> PathBuf {
     let path = dir.join(name);
     let script =
         "#!/bin/bash\necho '{\"type\":\"error\",\"message\":\"auth failed\"}'\nexit 1\n";
-    std::fs::write(&path, script).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    write_script(&path, script);
     path
 }
 

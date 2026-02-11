@@ -11,7 +11,13 @@ use harness::runner::AgentRunner;
 /// Create a mock binary that outputs the given lines on stdout.
 fn create_mock_binary(dir: &std::path::Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
-    std::fs::write(&path, script).unwrap();
+    // Use explicit open/write/sync/close to avoid ETXTBSY on Linux CI.
+    {
+        use std::io::Write;
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(script.as_bytes()).unwrap();
+        f.sync_all().unwrap();
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
