@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "harnesscli"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "async-trait",
