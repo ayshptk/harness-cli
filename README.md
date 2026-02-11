@@ -14,7 +14,7 @@ Write one integration, and it works with any supported agent backend.
 |-------|--------|--------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Supported |
 | [OpenAI Codex](https://github.com/openai/codex) | `codex` | Supported |
-| [OpenCode](https://github.com/opencode-ai/opencode) | `opencode` | Supported |
+| [OpenCode](https://opencode.ai/) | `opencode` | Supported |
 | [Cursor](https://cursor.com) | `agent` | Supported |
 
 ## Install
